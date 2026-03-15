@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      (function() {
+        var h = (window.location.hash || '').slice(1);
+        var s = (window.location.search || '').slice(1);
+        var raw = h || s;
+        if (!raw) return;
+        var data = '';
+        if (raw.indexOf('tgWebAppData=') >= 0) {
+          try {
+            var m = raw.match(/tgWebAppData=([^&]+)/);
+            data = m ? decodeURIComponent(m[1]) : '';
+          } catch (e) {}
+        } else if (raw.indexOf('auth_date=') !== -1) {
+          data = raw;
+        }
+        if (data && data.length > 20) {
+          try {
+            sessionStorage.setItem('tg_init_data', data);
+            localStorage.setItem('tg_init_data', data);
+          } catch (e) {}
+        }
+      })();
+    </script>
+    <title>Hana Beauty - Telegram ilovasi</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

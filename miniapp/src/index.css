@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+body {
+  background-color: #f9fafb; /* gray-50 */
+}
+
+/* Hide scrollbar for product image gallery (swipe area) */
+.gallery-scroll::-webkit-scrollbar {
+  display: none;
+}
