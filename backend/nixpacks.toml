@@ -1,0 +1,3 @@
+# Use npm install instead of npm ci so deployment doesn't fail on lockfile sync issues
+[phases.install]
+cmds = ["npm install"]
