@@ -918,6 +918,85 @@ function handleConversationMessage(msg: BotMessage): void {
   }
 }
 
+/** Webhook path: token-based for security when token available, else fixed fallback */
+const _token = process.env.TELEGRAM_BOT_TOKEN;
+export const WEBHOOK_PATH = _token ? `/telegram/bot${_token.slice(-10)}` : '/telegram/webhook-v3k9x2p7';
+
+/** Use polling in local/dev; webhook only on Railway or public HTTPS */
+export function shouldUsePolling(): boolean {
+  const isRailwayProd = !!process.env.RAILWAY_PUBLIC_DOMAIN;
+  const isLocal =
+    process.env.NODE_ENV === 'development' ||
+    process.env.NODE_ENV === undefined ||
+    process.env.PORT === '3000' ||
+    process.env.PORT === '5000' ||
+    (!!process.env.HOST &&
+      (process.env.HOST.includes('localhost') || process.env.HOST.includes('127.0.0.1')));
+
+  if (isRailwayProd) {
+    console.log('[Telegram Mode] Railway production detected → WEBHOOK');
+    return false;
+  }
+  if (isLocal) {
+    console.log('[Telegram Mode] Local/development detected → POLLING');
+    return true;
+  }
+  console.log('[Telegram Mode] Unknown env → fallback to POLLING');
+  return true;
+}
+
+/** Delete existing webhook; never throws, logs on failure. Kills ghost polling sessions. */
+export async function deleteWebhook(): Promise<void> {
+  if (!bot) return;
+  try {
+    await bot.deleteWebHook();
+    console.log('[Telegram] Webhook deleted successfully');
+  } catch (err) {
+    console.warn('[Telegram] deleteWebhook failed (non-fatal):', err);
+  }
+}
+
+export async function setupWebhook(): Promise<void> {
+  if (!bot) return;
+  const domain = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.WEBHOOK_DOMAIN || 'localhost:5000';
+  const url = `https://${domain}${WEBHOOK_PATH}`;
+
+  if (url.includes('localhost') || url.includes('127.0.0.1')) {
+    console.warn('[Webhook] Skipped: localhost URL detected — only allowed in polling mode');
+    return;
+  }
+
+  await deleteWebhook();
+  try {
+    await bot.setWebHook(url, {
+      drop_pending_updates: true,
+      max_connections: 40,
+    } as TelegramBot.SetWebHookOptions);
+    console.log(`[Telegram] Webhook successfully set to: ${url}`);
+  } catch (err) {
+    console.error('[Telegram] Failed to set webhook:', err);
+    throw err;
+  }
+}
+
+/** Express POST handler for incoming Telegram webhook updates */
+export function getWebhookHandler(): (req: { body: unknown }, res: { sendStatus: (code: number) => void }) => void {
+  return (req, res) => {
+    if (!bot) {
+      res.sendStatus(503);
+      return;
+    }
+    const body = req.body as { update_id?: number } | null;
+    console.log('Webhook received from Telegram:', body?.update_id ?? 'no id');
+    res.sendStatus(200);
+    try {
+      bot.processUpdate(req.body as TelegramBot.Update);
+    } catch (err) {
+      console.error('[Telegram] processUpdate error:', err);
+    }
+  };
+}
+
 export async function startTelegramBot(): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const miniappUrl = process.env.MINIAPP_URL ?? 'https://example.com';
@@ -927,7 +1006,15 @@ export async function startTelegramBot(): Promise<void> {
     return;
   }
 
-  bot = new TelegramBot(token, { polling: true });
+  const usePolling = shouldUsePolling();
+  bot = new TelegramBot(token, usePolling ? { polling: true } : {});
+
+  if (usePolling) {
+    console.log('[Telegram] Starting polling...');
+  } else {
+    console.log('[Telegram] Webhook mode initialized — waiting for server to call setupWebhook');
+    await deleteWebhook();
+  }
   await setupBotCommands(bot);
 
   // Telegram API requires menu_button as JSON string (see node-telegram-bot-api#995, #1165)
@@ -1716,7 +1803,11 @@ export async function startTelegramBot(): Promise<void> {
     }
   });
 
-  console.log('Telegram bot started');
+  if (usePolling) {
+    console.log('[Telegram] Bot started with polling (development mode)');
+  } else {
+    console.log('[Telegram] Bot initialized for webhook mode (setupWebhook will be called by server)');
+  }
 }
 
 export function getBot(): TelegramBot | null {
