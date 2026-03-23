@@ -924,25 +924,25 @@ export const WEBHOOK_PATH = _token ? `/telegram/bot${_token.slice(-10)}` : '/tel
 
 /** Use polling in local/dev; webhook only on Railway or public HTTPS */
 export function shouldUsePolling(): boolean {
-  const isRailwayProd = !!process.env.RAILWAY_PUBLIC_DOMAIN;
-  const isLocal =
-    process.env.NODE_ENV === 'development' ||
-    process.env.NODE_ENV === undefined ||
-    process.env.PORT === '3000' ||
-    process.env.PORT === '5000' ||
-    (!!process.env.HOST &&
-      (process.env.HOST.includes('localhost') || process.env.HOST.includes('127.0.0.1')));
+  // ONLY use polling if we are VERY sure it's local dev
+  // In ALL other cases (especially Railway) → force webhook
 
-  if (isRailwayProd) {
-    console.log('[Telegram Mode] Railway production detected → WEBHOOK');
+  const hasRailwayDomain = !!process.env.RAILWAY_PUBLIC_DOMAIN;
+  const isExplicitDev = process.env.NODE_ENV === 'development';
+
+  if (hasRailwayDomain) {
+    console.log('[Telegram Mode] Railway public domain detected → FORCING WEBHOOK');
     return false;
   }
-  if (isLocal) {
-    console.log('[Telegram Mode] Local/development detected → POLLING');
+
+  if (isExplicitDev) {
+    console.log('[Telegram Mode] Explicit development env → polling');
     return true;
   }
-  console.log('[Telegram Mode] Unknown env → fallback to POLLING');
-  return true;
+
+  // Fallback: assume production-like if unsure
+  console.log('[Telegram Mode] Unknown environment → default to WEBHOOK');
+  return false;
 }
 
 /** Delete existing webhook; never throws, logs on failure. Kills ghost polling sessions. */
