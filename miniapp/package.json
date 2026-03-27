@@ -6,9 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
     "preview": "vite preview",
-    "preview:railway": "vite preview --port $PORT --host 0.0.0.0",
     "serve": "npx serve -s dist -l $PORT"
   },
   "dependencies": {
@@ -34,6 +32,5 @@
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1",
     "serve": "^14.2.3"
-
   }
 }
